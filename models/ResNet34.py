@@ -39,7 +39,7 @@ class ResNet34(BasicModule):
     用子module实现residual block，用_make_layer函数实现layer
     '''
 
-    def __init__(self, num_classes=32):
+    def __init__(self, num_classes=160):
         super(ResNet34, self).__init__()
         self.model_name = 'resnet34'
 

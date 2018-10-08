@@ -111,8 +111,8 @@ def train(**kwargs):
             len_target = len(target[1])
             length = len(score)
 
-            score = score.reshape(16*length, 1, 2)
-            target = target.reshape(16*length, 1)
+            score = score.reshape(len_target*length, 1, 2)
+            target = target.reshape(len_target*length, 1)
             # 将score和target打包
             obj = zip(score, target)
             # 初始化loss
@@ -179,8 +179,8 @@ def val(model, dataloader):
         # 将score和target分为8份
         length = len(score)
         len_target = len(label[1])
-        score = score.reshape(16*length, 1, 2)
-        target = label.reshape(16*length, 1)
+        score = score.reshape(len_target*length, 1, 2)
+        target = label.reshape(len_target*length, 1)
         obj = zip(score, target)
         for i, la in obj:
             if i[0][la.item()].item() > i[0][1-la.item()].item():
@@ -231,7 +231,7 @@ def test(**kwargs):
     acc_val = 0
     sum_val = 0
     for ii, (data, label) in tqdm(enumerate(test_dataloader)):
-        input = Variable(data, volatile=True)
+        input = data
         if opt.use_gpu:
             # 数据置入GPU
             input = input.cuda()
