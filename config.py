@@ -1,3 +1,4 @@
+#coding=utf-8
 import warnings
 
 
@@ -5,11 +6,11 @@ class DefaultConfig(object):
     env = 'default'   # visdom环境
     model = 'ResNet34'
 
-    train_data_root = './data/train'
+    train_data_root = './data/train_v2/2'
     test_data_root = './data/test'
-    load_model_path = None
+    load_model_path = ''
 
-    batch_size = 32
+    batch_size = 128
     use_gpu = True
     num_workers = 4   # n 个子进程用于加载数据
     print_freq = 20   # 每 N batch 打印一次信息
@@ -30,7 +31,7 @@ def parse(self, kwargs):
         setattr(self, k, v)
 
     # 打印用户配置
-    print('user config/用户配置:')
+    print('user config:')
     # 将所有属性字典列出，并打印
     for k, v in self.__class__.__dict__.items():
         # 排除私有属性

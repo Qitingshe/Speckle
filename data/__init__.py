@@ -1,1 +1,1 @@
-from .dataset import DogCat
+from .dataset import IMGDataset

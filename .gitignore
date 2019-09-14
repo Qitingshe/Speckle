@@ -1,0 +1,7 @@
+*.jpg
+*.pyc
+tags
+data/*
+checkpoints
+.vscode/settings.json
+*.txt

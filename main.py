@@ -1,8 +1,9 @@
+#coding=utf-8
 from config import opt
 import os
 import torch as t
 import models
-from data import DogCat
+from data import IMGDataset
 from torch.utils.data import DataLoader
 from torch.autograd import Variable
 from torchnet import meter
@@ -16,6 +17,10 @@ def train(**kwargs):
     opt.parse(kwargs)
     # 指定env=opt.env,默认端口为8097,host为localhost
     vis = Visualizer(opt.env)
+    list_loss = []
+    list_acc = []
+    list_bit = []
+    list_dev_bit = []
 
     # 步骤1：模型参数
     # 获取models中的opt.model属性值，决定采用何种网络
@@ -56,7 +61,7 @@ def train(**kwargs):
         # 步骤2：加载数据
         # 加载训练集数据
         # 使用自定义数据集类DogCat加载数据，使用train_data.__getitem__(index)获取对应索引的data和label
-        train_data = DogCat(imgs, train=True)
+        train_data = IMGDataset(imgs, train=True)
         """
         i = 0
         while i < 0:
@@ -68,7 +73,7 @@ def train(**kwargs):
         train_dataloader = DataLoader(
             train_data, opt.batch_size, shuffle=True, num_workers=opt.num_workers)
         # 加载验证集数据
-        val_data = DogCat(imgs, train=False)
+        val_data = IMGDataset(imgs, train=False)
         """
         i = 0
         while i < 0:
@@ -88,6 +93,7 @@ def train(**kwargs):
         # enumerate：对于一个可迭代的（iterable）/可遍历的对象（如列表、字符串），enumerate将其组成一个索引序列，利用它可以同时获得索引和值
         # enumerate多用于在for循环中得到计数
 
+        tmp = [[], [], [], [], [], [], [], [], [], [], [], [], [], [], [], []]
         for ii, (data, label) in tqdm(enumerate(train_dataloader)):
             # 训练模型
 
@@ -119,8 +125,14 @@ def train(**kwargs):
             loss = t.FloatTensor([0])
             loss = loss.cuda()
 
+            index = 0
             for i, la in obj:
                 loss += criterion(i, la)
+                if i[0][la] > i[0][1-la]:
+                    tmp[index % 16].append(1)
+                else:
+                    tmp[index % 16].append(0)
+                index += 1
 
             # 反向传播
             loss = loss/(len_target*length)
@@ -135,6 +147,15 @@ def train(**kwargs):
             # 判断是否是第 N 个batch，以决定要不要打印信息
             if ii % opt.print_freq == opt.print_freq-1:
                 vis.plot('loss', loss_meter.value()[0])      # 绘制loss曲线
+                list_loss.append(str(ii)+","+str(loss_meter.value()[0])+"\n")
+
+        import numpy as np
+        xx = []
+        for i in range(len(tmp)):
+            xx.append(np.mean(tmp[i]))
+        print(xx)
+        list_bit.append(str(epoch)+","+str(xx)+"\n")
+
         if os.path.exists(opt.debug_file):
             import ipdb
             ipdb.set_trace()
@@ -143,9 +164,11 @@ def train(**kwargs):
         if os.path.exists(opt.debug_file):
             import ipdb
             ipdb.set_trace()
-        val_accuracy = val(model, val_dataloader)
+        val_accuracy, dev_bit = val(model, val_dataloader)
 
         vis.plot("val_accuracy", val_accuracy)
+        list_acc.append(str(epoch)+","+str(val_accuracy)+"\n")
+        list_dev_bit.append(str(epoch)+","+str(dev_bit)+"\n")
 
         # 更新学习率
         # 若当前损失比之前的要高，则认为学习率过快，需要降速
@@ -158,11 +181,20 @@ def train(**kwargs):
         # 更新previous_loss
         previous_loss = loss_meter.value()[0]
 
+    with open("loss_for_bits.txt", 'w') as file:
+        file.writelines("".join(list_loss))
+    with open("acc_for_bits.txt", 'w') as file:
+        file.writelines("".join(list_acc))
+    with open("bit_for_bits.txt", 'w') as file:
+        file.writelines("".join(list_bit))
+    with open("dev_for_bits.txt", 'w') as file:
+        file.writelines("".join(list_dev_bit))
+
 
 def val(model, dataloader):
-
     # 将模型设置为验证模式，之后还需要重新设置为训练模式，这部分会影响BatchNorm和Dropout等层的运行
     model.eval()
+    tmp = [[], [], [], [], [], [], [], [], [], [], [], [], [], [], [], []]
 
     # 初始化混淆矩阵为二分类
     # confusion_matrix = meter.ConfusionMeter(8)
@@ -182,11 +214,24 @@ def val(model, dataloader):
         score = score.reshape(len_target*length, 1, 2)
         target = label.reshape(len_target*length, 1)
         obj = zip(score, target)
+
+        index = 0
         for i, la in obj:
+            if i[0][la] > i[0][1-la]:
+                tmp[index % 16].append(1)
+            else:
+                tmp[index % 16].append(0)
+            index += 1
+
             if i[0][la.item()].item() > i[0][1-la.item()].item():
                 acc_val += 1
             sum_val += 1
 
+    import numpy as np
+    xx = []
+    for i in range(len(tmp)):
+        xx.append(np.mean(tmp[i]))
+    print("val:", xx)
     val_accuracy = acc_val/sum_val
 
     # 计算混淆矩阵
@@ -200,7 +245,7 @@ def val(model, dataloader):
     # 计算正确分类的准确率
 
     # accuracy = 100.*(cm_value[0][0]+cm_value[1][1]+cm_value[2][2]+cm_value[3][3]+cm_value[4][4]+cm_value[5][5]+cm_value[6][6]+cm_value[7][7])/(cm_value.sum())
-    return val_accuracy
+    return val_accuracy, xx
 
 
 def test(**kwargs):
@@ -218,10 +263,10 @@ def test(**kwargs):
     imgs = [os.path.join(opt.test_data_root, img)
             for img in os.listdir(opt.test_data_root)]
     random.shuffle(imgs)
-    test_data = DogCat(imgs, test=True)
+    test_data = IMGDataset(imgs, test=True)
     i = 0
     while i < 0:
-        test_data += DogCat(imgs, test=True)
+        test_data += IMGDataset(imgs, test=True)
         i += 1
     test_dataloader = DataLoader(
         test_data, batch_size=opt.batch_size, shuffle=False, num_workers=opt.num_workers)
